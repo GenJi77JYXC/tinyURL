@@ -43,7 +43,9 @@ func main() {
 
 	svc := service.NewShortenerService(repo, redisRepo, baseURL, 8) // 短码长度
 
-	r := api.SetupRouter(svc)
+	authSvc := service.NewAuthService(repo)
+
+	r := api.SetupRouter(svc, authSvc)
 
 	port := os.Getenv("PORT")
 	if port == "" {
