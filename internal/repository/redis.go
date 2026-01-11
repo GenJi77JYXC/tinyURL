@@ -31,8 +31,11 @@ func NewRedisRepo(addr, password string, db int, ttl time.Duration) *RedisRepo {
 	}
 }
 
-func (r *RedisRepo) SetShortLink(ctx context.Context, shortCode, originalURL string) error {
+func (r *RedisRepo) SetShortLink(ctx context.Context, shortCode, originalURL string, duration time.Duration) error {
 	key := "short:" + shortCode
+	if duration > 0 {
+		return r.client.Set(ctx, key, originalURL, duration).Err()
+	}
 	return r.client.Set(ctx, key, originalURL, r.ttl).Err()
 }
 

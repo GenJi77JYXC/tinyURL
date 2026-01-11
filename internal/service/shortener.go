@@ -2,8 +2,12 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"regexp"
+	"time"
 
 	"github.com/GenJi77JYXC/tinyurl/internal/model"
 	"github.com/GenJi77JYXC/tinyurl/internal/repository"
@@ -26,45 +30,68 @@ func NewShortenerService(sqlRepo *repository.SQLiteRepo, redisRepo *repository.R
 	}
 }
 
-func (s *ShortenerService) Shorten(url string, userID int64) (string, error) {
+type ShortenRequest struct {
+	URL        string `json:"url" binding:"required"`
+	ExpireDays int    `json:"expire_days"`           // 可选，默认 30
+	CustomCode string `json:"custom_code,omitempty"` // 可选，自定义短码
+}
+
+func (s *ShortenerService) Shorten(req ShortenRequest, userID int64) (string, error) {
 	ctx := context.Background()
 
-	// 1. 插入 SQLite，获取自增 ID（同时关联 userID）
-	res, err := s.sqlRepo.Db.Exec(
-		"INSERT INTO links (original_url, short_code, user_id) VALUES (?, '', ?)",
-		url, userID,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to insert link: %w", err)
+	// 处理过期时间
+	expireDays := req.ExpireDays
+	if expireDays <= 0 {
+		expireDays = 30 // 默认 30 天
+	}
+	expireAt := time.Now().AddDate(0, 0, expireDays)
+
+	var shortCode string
+
+	// 自定义短码优先
+	if req.CustomCode != "" {
+		if len(req.CustomCode) > 20 || !isValidShortCode(req.CustomCode) {
+			return "", errors.New("invalid custom code")
+		}
+		// 检查是否已存在
+		_, err := s.sqlRepo.GetOriginalURL(req.CustomCode)
+		if err == nil {
+			return "", errors.New("custom code already exists")
+		}
+		shortCode = req.CustomCode
+	} else {
+		// 自动生成
+		res, err := s.sqlRepo.Db.Exec(
+			"INSERT INTO links (original_url, short_code, user_id, expire_at) VALUES (?, '', ?, ?)",
+			req.URL, userID, expireAt,
+		)
+		if err != nil {
+			return "", err
+		}
+		id, _ := res.LastInsertId()
+		shortCode = util.Base62Encode(id)
+
+		// 更新 short_code
+		_, err = s.sqlRepo.Db.Exec("UPDATE links SET short_code = ? WHERE id = ?", shortCode, id)
+		if err != nil {
+			return "", err
+		}
 	}
 
-	id, err := res.LastInsertId()
+	// 写入 Redis 缓存（带过期）
+	err := s.redisRepo.SetShortLink(ctx, shortCode, req.URL, time.Until(expireAt))
 	if err != nil {
-		return "", fmt.Errorf("failed to get last insert id: %w", err)
+		log.Printf("Redis set failed: %v", err)
 	}
 
-	// 2. 根据 ID 生成短码（Base62）
-	shortCode := util.Base62Encode(id)
+	return fmt.Sprintf("%s/%s", s.baseURL, shortCode), nil
 
-	// 3. 更新 SQLite 中的 short_code
-	_, err = s.sqlRepo.Db.Exec(
-		"UPDATE links SET short_code = ? WHERE id = ?",
-		shortCode, id,
-	)
-	if err != nil {
-		return "", fmt.Errorf("failed to update short_code: %w", err)
-	}
+}
 
-	// 4. 同时写入 Redis 缓存（带过期时间）
-	err = s.redisRepo.SetShortLink(ctx, shortCode, url)
-	if err != nil {
-		// 缓存失败不影响核心功能，但记录日志
-		log.Printf("Redis set failed for shortCode %s: %v", shortCode, err)
-	}
-
-	// 5. 返回完整的短链接
-	fullShortURL := fmt.Sprintf("%s/%s", s.baseURL, shortCode)
-	return fullShortURL, nil
+// 辅助函数：校验自定义短码（只允许字母数字下划线）
+func isValidShortCode(code string) bool {
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+$`, code)
+	return matched
 }
 
 func (s *ShortenerService) GetRedirectURL(shortCode string) (string, error) {
@@ -73,24 +100,36 @@ func (s *ShortenerService) GetRedirectURL(shortCode string) (string, error) {
 	// 先查 Redis
 	url, err := s.redisRepo.GetOriginalURL(ctx, shortCode)
 	if err == nil && url != "" {
-		// 命中缓存，增加点击
 		s.redisRepo.IncrementClick(ctx, shortCode)
 		return url, nil
 	}
 
-	// 未命中 → 查 SQLite
-	url, err = s.sqlRepo.GetOriginalURL(shortCode)
+	// 查 SQLite 并检查过期
+	var originalURL string
+	var expireAt time.Time
+	err = s.sqlRepo.Db.QueryRow(`
+        SELECT original_url, expire_at 
+        FROM links 
+        WHERE short_code = ?`,
+		shortCode,
+	).Scan(&originalURL, &expireAt)
+
+	if err == sql.ErrNoRows {
+		return "", errors.New("not found")
+	}
 	if err != nil {
 		return "", err
 	}
 
-	// 回写 Redis 缓存
-	s.redisRepo.SetShortLink(ctx, shortCode, url)
+	if time.Now().After(expireAt) {
+		return "", errors.New("link expired")
+	}
 
-	// 增加点击
+	// 回写 Redis
+	s.redisRepo.SetShortLink(ctx, shortCode, originalURL, time.Until(expireAt))
 	s.redisRepo.IncrementClick(ctx, shortCode)
 
-	return url, nil
+	return originalURL, nil
 }
 
 func (s *ShortenerService) GetStats(shortCode string) (int64, error) {

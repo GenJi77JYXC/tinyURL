@@ -2,12 +2,17 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/GenJi77JYXC/tinyurl/internal/config"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/ulule/limiter/v3"
+	mgin "github.com/ulule/limiter/v3/drivers/middleware/gin"
+	"github.com/ulule/limiter/v3/drivers/store/memory"
 )
 
 func AuthMiddleware() gin.HandlerFunc {
@@ -47,4 +52,25 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Set("user_id", userID)
 		c.Next()
 	}
+}
+
+func RateLimitMiddleware() gin.HandlerFunc {
+	rate := limiter.Rate{
+		Period: 1 * time.Minute,
+		Limit:  60, // 每分钟 60 次
+	}
+	store := memory.NewStore()
+	limiter := limiter.New(store, rate)
+
+	middleware := mgin.NewMiddleware(limiter, mgin.WithKeyGetter(func(c *gin.Context) string {
+		// IP + 用户ID（如果登录）
+		ip := c.ClientIP()
+		userID, _ := c.Get("user_id")
+		if userID != nil {
+			return fmt.Sprintf("%s:%d", ip, userID.(int64))
+		}
+		return ip
+	}))
+
+	return middleware
 }

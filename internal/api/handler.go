@@ -8,10 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type ShortenRequest struct {
-	URL string `json:"url" binding:"required"`
-}
-
 func ShortenHandler(svc *service.ShortenerService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID, exists := c.Get("user_id")
@@ -20,13 +16,13 @@ func ShortenHandler(svc *service.ShortenerService) gin.HandlerFunc {
 			return
 		}
 
-		var req ShortenRequest
+		var req service.ShortenRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 
-		shortURL, err := svc.Shorten(req.URL, userID.(int64))
+		shortURL, err := svc.Shorten(req, userID.(int64))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return

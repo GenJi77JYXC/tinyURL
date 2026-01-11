@@ -18,6 +18,7 @@ func SetupRouter(svc *service.ShortenerService, authSvc *service.AuthService) *g
 	// 保护路由
 	protected := r.Group("/api")
 	protected.Use(AuthMiddleware())
+	protected.Use(RateLimitMiddleware())
 	{
 		protected.POST("/shorten", ShortenHandler(svc))
 		protected.GET("/my-links", MyLinksHandler(svc))
