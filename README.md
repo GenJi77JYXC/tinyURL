@@ -51,3 +51,75 @@ docker run -d -p 6379:6379 --name redis-tinyurl redis:latest
 
 # 运行服务
 go run cmd/main.go
+```
+
+### 2. 生成短链（需登录）
+   先注册/登录获取 token：
+```bash
+   # 注册
+   curl -X POST http://localhost:8080/api/register -H "Content-Type: application/json" -d '{"username":"test","password":"123456"}'
+   # 登录
+   curl -X POST http://localhost:8080/api/login -H "Content-Type: application/json" -d '{"username":"test","password":"123456"}'
+```
+
+
+创建短链（带 token）：
+```bash
+curl -X POST http://localhost:8080/api/shorten \
+-H "Content-Type: application/json" \
+-H "Authorization: Bearer 你的token" \
+-d '{"url": "https://www.example.com", "custom_code": "myblog", "expire_days": 7}'
+```
+### 3. 部署到服务器（Linux）
+```bash
+   # 交叉编译（在 Windows/Linux 上）
+   GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w" -o tinyurl-linux cmd/main.go
+   # 上传到服务器
+   scp tinyurl-linux user@你的服务器IP:/home/user/
+
+   # 服务器上操作
+   chmod +x tinyurl-linux
+   sudo mv tinyurl-linux /usr/local/bin/tinyurl
+
+   # 创建服务文件 /etc/systemd/system/tinyurl.service
+   sudo systemctl daemon-reload
+   sudo systemctl start tinyurl
+   sudo systemctl enable tinyurl
+```
+
+## 项目结构
+```text
+tinyurl/
+├── cmd/
+│   └── main.go              # 入口
+├── internal/
+│   ├── api/                 # Handler & Router & Middleware
+│   ├── model/               # 数据模型
+│   ├── repository/          # SQLite & Redis 存储层
+│   ├── service/             # 业务逻辑（Shortener & Auth）
+│   └── config/              # 配置加载
+├── pkg/util/                # Base62 编码等工具
+├── docs/                    # 部署、接口文档
+├── .env                     # 环境变量
+└── README.md
+```
+
+## API 接口文档（Swagger 待集成）
+
+```text
+POST /api/register → 用户注册
+POST /api/login → 登录返回 JWT
+POST /api/shorten → 创建短链（需 JWT）
+GET /api/my-links → 我的短链列表
+GET /:short → 短链重定向
+GET /api/stats/:short → 查看点击统计
+```
+
+## 线上演示
+域名：https://genji.xin
+短链示例：https://genji.xin/10 → 跳转到 https://www.baidu.com
+（前端待完善，可用 Postman 测试 API）
+## 贡献 & License
+欢迎提交 Issue/PR！
+本项目采用 MIT License
+© 2026 GenJi (@GenJi_JYXC)
