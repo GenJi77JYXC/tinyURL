@@ -116,8 +116,8 @@ GET /api/stats/:short → 查看点击统计
 ```
 
 ## 线上演示
-域名：https://genji.xin
-短链示例：https://genji.xin/10 → 跳转到 https://www.baidu.com
+域名：https://mahiro.cloud
+短链示例：https://www.mahiro.cloud/10 → 跳转到 https://www.baidu.com
 （前端待完善，可用 Postman 测试 API）
 ## 贡献 & License
 欢迎提交 Issue/PR！
