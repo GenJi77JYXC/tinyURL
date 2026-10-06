@@ -6,6 +6,9 @@
 cmd.exe
 *.exe
 server
+tinyurl-linux
+tinyurl-server
+*.bin
 
 # Build artifacts
 dist/
