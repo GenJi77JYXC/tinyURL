@@ -39,6 +39,33 @@
 
 跳转一律返回 **302 Found**（而非 301），保证每次点击都经过服务，便于统计与灰度切换。
 
+## 在线体验
+
+已部署到生产环境：`https://tinyurl.mahiro.cloud`（阿里云 2C2G + Docker Compose + Nginx 反代 + HTTPS）
+
+```bash
+# 1. 健康检查
+curl https://tinyurl.mahiro.cloud/healthz
+# {"status":"ok"}
+
+# 2. 创建一条短链
+curl -X POST https://tinyurl.mahiro.cloud/shorten \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com"}'
+# 201 {"short_code":"100001","short_url":"https://tinyurl.mahiro.cloud/s/100001"}
+
+# 3. 验证跳转（302 Found → Location 指向原始 URL）
+curl -s -o /dev/null -w "%{http_code} %{redirect_url}\n" \
+  https://tinyurl.mahiro.cloud/s/100001
+# 302 https://example.com/
+```
+
+直接在浏览器打开 `https://tinyurl.mahiro.cloud/s/100001` 也能看到 302 跳转效果。
+
+监控看板（Grafana）：`https://tinyurl.mahiro.cloud/grafana/`（访客暂不提供账号，本地复现时 admin/admin 即可看到同款看板）
+
+> 注意：生成接口有 10 QPS/IP 的令牌桶限流，频繁调用会收到 429；这是刻意设计的防护行为。
+
 ## 技术栈
 
 | 关注点 | 选型 |
