@@ -1,41 +1,34 @@
 package api
 
 import (
-	"time"
+	"log/slog"
 
-	"github.com/GenJi77JYXC/tinyurl/internal/service"
-	"github.com/gin-contrib/cors"
+	"github.com/GenJi77JYXC/tinyurl/internal/config"
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func SetupRouter(svc *service.ShortenerService, authSvc *service.AuthService) *gin.Engine {
-	r := gin.Default()
+// NewRouter wires every route:
+//
+//	GET  /healthz   liveness probe
+//	GET  /metrics   Prometheus scrape endpoint
+//	POST /shorten   create a short link (per-IP token-bucket rate limited)
+//	GET  /s/{code}  302 redirect
+func NewRouter(h *Handler, cfg *config.Config, limiter *ipLimiter) *gin.Engine {
+	gin.SetMode(cfg.GinMode)
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery())
 
-	// 添加 CORS 中间件（允许本地开发跨域）
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:5174", "https://mahiro.cloud", "https://www.mahiro.cloud"}, // 允许这些源
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type", "Origin"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
-
-	//r.POST("/api/shorten", ShortenHandler(svc))
-	r.GET("/:short", RedirectHandler(svc))
-	r.GET("/api/stats/:short", StatsHandler(svc))
-
-	r.POST("/api/register", RegisterHandler(authSvc))
-	r.POST("/api/login", LoginHandler(authSvc))
-
-	// 保护路由
-	protected := r.Group("/api")
-	protected.Use(AuthMiddleware())
-	protected.Use(RateLimitMiddleware())
-	{
-		protected.POST("/shorten", ShortenHandler(svc))
-		protected.GET("/my-links", MyLinksHandler(svc))
+	if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
+		slog.Warn("invalid trusted proxies configuration, falling back to direct peer IP", "error", err)
+		_ = r.SetTrustedProxies(nil)
 	}
+
+	r.GET("/healthz", h.Healthz)
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	r.POST("/shorten", limiter.RateLimit(), h.Shorten)
+	r.GET("/s/:code", h.Redirect)
 
 	return r
 }
