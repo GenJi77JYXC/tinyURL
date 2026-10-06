@@ -3,10 +3,10 @@ name: tinyurl
 # 生产环境配置（2C2G）
 # 修改点：
 # 1. postgres/redis 不暴露公网端口
-# 2. app/prometheus 仅绑定 127.0.0.1（通过 Nginx 反代或 SSH 隧道访问）
-# 3. 2C2G 内存紧张，去掉 Grafana（省 ~200MB），Prometheus UI 足够查指标
+# 2. app/prometheus/grafana 仅绑定 127.0.0.1（通过 Nginx 反代访问）
+# 3. Grafana 通过子路径 https://tinyurl.mahiro.cloud/grafana/ 访问
 # 4. 各服务加了内存限制，防止 OOM 把系统拖垮
-# 5. 请务必修改 app.environment.BASE_URL 为你的真实域名
+# 5. BASE_URL 默认生产域名，本地开发可通过 .env 覆盖为 http://localhost:8080
 
 services:
   postgres:
