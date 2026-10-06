@@ -1,0 +1,31 @@
+# IDE
+.idea/
+.vscode/
+
+# Binaries
+cmd.exe
+*.exe
+server
+
+# Build artifacts
+dist/
+build/
+
+# Docker images / archives
+*.tar
+*.tar.gz
+
+# Database
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

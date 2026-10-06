@@ -59,6 +59,15 @@ func (s *ShortenerService) Shorten(req ShortenRequest, userID int64) (string, er
 			return "", errors.New("custom code already exists")
 		}
 		shortCode = req.CustomCode
+
+		// 写入 SQLite（自定义短码也需要落库，否则「我的短链」查不到）
+		_, err = s.sqlRepo.Db.Exec(
+			"INSERT INTO links (original_url, short_code, user_id, expire_at) VALUES (?, ?, ?, ?)",
+			req.URL, shortCode, userID, expireAt,
+		)
+		if err != nil {
+			return "", err
+		}
 	} else {
 		// 自动生成
 		res, err := s.sqlRepo.Db.Exec(
