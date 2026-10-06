@@ -1,0 +1,12 @@
+.git
+.idea
+.vscode
+*.md
+*.db
+tinyurl-linux
+.env
+.env.local
+**/*_test.go
+docs
+scripts
+deploy

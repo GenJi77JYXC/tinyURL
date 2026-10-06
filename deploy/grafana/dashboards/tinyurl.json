@@ -1,0 +1,100 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "title": "tinyURL Overview",
+  "tags": ["tinyurl"],
+  "time": { "from": "now-30m", "to": "now" },
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Redirect QPS by resolution state",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "sum by (state) (rate(shorturl_resolve_total[1m]))",
+          "legendFormat": "{{state}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Base62 encode latency P99 (seconds)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(shorturl_encode_duration_seconds_bucket[1m])))",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Cache hit ratio (%)",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "thresholds": { "mode": "absolute", "steps": [] }, "color": { "mode": "fixed", "fixedColor": "green" } }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(shorturl_resolve_total{state=\"cache_hit\"}[1m])) / clamp_min(sum(rate(shorturl_resolve_total[1m])), 0.001)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Cache penetration ratio (%)",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "fixed", "fixedColor": "orange" } }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "100 * sum(rate(shorturl_resolve_total{state=\"not_found\"}[1m])) / clamp_min(sum(rate(shorturl_resolve_total[1m])), 0.001)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Goroutines",
+      "gridPos": { "h": 7, "w": 4, "x": 16, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } }, "overrides": [] },
+      "targets": [
+        { "expr": "shorturl_goroutines", "refId": "A" }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "gauge",
+      "title": "Redis pool usage (%)",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green" }, { "color": "yellow", "value": 0.7 }, { "color": "red", "value": 0.9 } ] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "shorturl_redis_pool_usage_ratio", "refId": "A" }
+      ]
+    }
+  ]
+}
