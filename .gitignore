@@ -1,0 +1,15 @@
+# 本地环境变量（含连接串/密钥，不进仓库；用 .env.example 作模板）
+.env
+
+# 旧产物与编译产物
+*.db
+tinyurl-linux
+tinyurl
+
+# IDE
+.idea/
+.vscode/
+
+# 构建输出
+/dist/
+*.exe
